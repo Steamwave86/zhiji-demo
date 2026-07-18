@@ -20099,10 +20099,6 @@ console.log(&#x27;  图案:&#x27;, currentPattern);
                 <svg class="nav-icon" viewBox="0 0 200 200" fill="none"><rect x="30" y="40" width="140" height="130" rx="12" fill="#FFE4D0" stroke="#D4858C" stroke-width="5"/><rect x="30" y="40" width="140" height="35" rx="12" fill="#FFD9C0" stroke="#D4858C" stroke-width="5"/><line x1="55" y1="20" x2="55" y2="55" stroke="#D4858C" stroke-width="5" stroke-linecap="round"/><line x1="145" y1="20" x2="145" y2="55" stroke="#D4858C" stroke-width="5" stroke-linecap="round"/></svg>
                 <span>日历</span>
             </button>
-            <button class="nav-item" onclick="switchPage('knit3d')">
-                <svg class="nav-icon" viewBox="0 0 200 200" fill="none"><rect x="35" y="50" width="130" height="100" rx="8" fill="#FFE4D0" stroke="#D4858C" stroke-width="5"/><path d="M60 70 L60 130 M100 70 L100 130 M140 70 L140 130" stroke="#D4858C" stroke-width="4" stroke-linecap="round"/><path d="M50 90 L150 90 M50 110 L150 110" stroke="#D4858C" stroke-width="3" stroke-linecap="round" stroke-dasharray="4 3"/><circle cx="100" cy="68" r="10" fill="#FFD9C0" stroke="#D4858C" stroke-width="3"/></svg>
-                <span>3D 预览</span>
-            </button>
             <button class="nav-item" onclick="switchPage('profile')">
                 <svg class="nav-icon" viewBox="0 0 200 200" fill="none"><circle cx="100" cy="70" r="30" fill="#FFE4D0" stroke="#D4858C" stroke-width="5"/><path d="M40 180C40 130 160 130 160 180" fill="#FFD9C0" stroke="#D4858C" stroke-width="5" stroke-linecap="round"/></svg>
                 <span>我的</span>
@@ -20133,7 +20129,7 @@ function switchPage(pageId) {
 
 function updateNav() {
     var items = document.querySelectorAll('#bottom-nav .nav-item, #bottom-nav .nav-add');
-    var ids = ['index', 'yarnbox', null, 'calendar', 'knit3d', 'profile'];
+    var ids = ['index', 'yarnbox', null, 'calendar', 'profile'];
     var idx = 0;
     items.forEach(function(item) {
         if (ids[idx] !== null) {
