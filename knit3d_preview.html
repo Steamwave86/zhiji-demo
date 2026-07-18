@@ -1,0 +1,370 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>织记·3D 针法预览</title>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+html, body { height: 100%; overflow: hidden; background: #1a1a2e; }
+body { font-family: -apple-system, BlinkMacSystemFont, 'PingFang SC', 'Microsoft YaHei', sans-serif; }
+#container { width: 100%; height: 100%; position: relative; }
+#container canvas { display: block; }
+
+/* 顶部控制栏 */
+#toolbar {
+  position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+  background: linear-gradient(180deg, rgba(26,26,46,0.95) 0%, rgba(26,26,46,0.7) 80%, transparent 100%);
+  padding: 12px 16px 20px;
+  display: flex; flex-wrap: wrap; align-items: center; gap: 8px;
+  pointer-events: none;
+}
+#toolbar > * { pointer-events: auto; }
+
+.toolbar-title {
+  color: #e8c4a0; font-size: 15px; font-weight: 600;
+  margin-right: 12px; white-space: nowrap;
+}
+
+.pattern-btn {
+  padding: 6px 14px; border-radius: 16px; border: 1px solid rgba(232,196,160,0.3);
+  background: rgba(255,255,255,0.06); color: #ccc; font-size: 12px;
+  cursor: pointer; transition: all 0.2s; white-space: nowrap;
+  font-family: inherit;
+}
+.pattern-btn:hover { background: rgba(232,196,160,0.15); border-color: rgba(232,196,160,0.5); }
+.pattern-btn.active { background: rgba(232,196,160,0.25); border-color: #e8c4a0; color: #e8c4a0; }
+
+#colorPicker {
+  width: 30px; height: 30px; border-radius: 50%; border: 2px solid rgba(232,196,160,0.4);
+  cursor: pointer; padding: 0; background: none; overflow: hidden;
+  flex-shrink: 0;
+}
+#colorPicker::-webkit-color-swatch-wrapper { padding: 0; }
+#colorPicker::-webkit-color-swatch { border: none; border-radius: 50%; }
+
+/* 底部提示 */
+#hint {
+  position: fixed; bottom: 24px; left: 50%; transform: translateX(-50%);
+  color: rgba(255,255,255,0.4); font-size: 12px; pointer-events: none;
+  z-index: 100; text-align: center;
+}
+
+/* 加载动画 */
+#loading {
+  position: fixed; inset: 0; display: flex; align-items: center; justify-content: center;
+  z-index: 200; background: #1a1a2e; transition: opacity 0.5s;
+}
+#loading.hidden { opacity: 0; pointer-events: none; }
+#loading .spinner {
+  width: 36px; height: 36px; border: 3px solid rgba(232,196,160,0.2);
+  border-top-color: #e8c4a0; border-radius: 50%; animation: spin 0.8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+/* 响应式 */
+@media (max-width: 480px) {
+  .pattern-btn { padding: 5px 10px; font-size: 11px; }
+  .toolbar-title { font-size: 13px; margin-right: 4px; }
+}
+</style>
+</head>
+<body>
+
+<div id="loading"><div class="spinner"></div></div>
+<div id="container"></div>
+
+<div id="toolbar">
+  <span class="toolbar-title">织记·3D 针法预览</span>
+  <button class="pattern-btn active" data-pattern="stockinette">平针</button>
+  <button class="pattern-btn" data-pattern="garter">起伏针</button>
+  <button class="pattern-btn" data-pattern="rib1x1">1×1 罗纹</button>
+  <button class="pattern-btn" data-pattern="seed">桂花针</button>
+  <input type="color" id="colorPicker" value="#e8d5c4" title="毛线颜色">
+</div>
+<div id="hint">🖱 拖拽旋转 &nbsp;|&nbsp; 滚轮缩放 &nbsp;|&nbsp; 右键平移</div>
+
+<script type="importmap">
+{
+  "imports": {
+    "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+    "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+  }
+}
+</script>
+
+<script type="module">
+import * as THREE from 'three';
+import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
+
+// ========== 场景初始化 ==========
+const container = document.getElementById('container');
+const scene = new THREE.Scene();
+
+// 渐变背景
+scene.background = new THREE.Color('#1a1a2e');
+scene.fog = new THREE.Fog('#1a1a2e', 8, 25);
+
+const camera = new THREE.PerspectiveCamera(40, container.clientWidth / container.clientHeight, 0.5, 50);
+camera.position.set(0, 6, 10);
+camera.lookAt(0, 0, 0);
+
+const renderer = new THREE.WebGLRenderer({ antialias: true });
+renderer.setSize(container.clientWidth, container.clientHeight);
+renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+renderer.toneMapping = THREE.ACESFilmicToneMapping;
+renderer.toneMappingExposure = 1.2;
+container.appendChild(renderer.domElement);
+
+// 轨道控制
+const controls = new OrbitControls(camera, renderer.domElement);
+controls.target.set(0, 0, 0);
+controls.enableDamping = true;
+controls.dampingFactor = 0.08;
+controls.minDistance = 3;
+controls.maxDistance = 18;
+controls.maxPolarAngle = Math.PI * 0.65;
+controls.minPolarAngle = 0.2;
+controls.update();
+
+// ========== 光照 ==========
+// 环境光
+const ambient = new THREE.AmbientLight('#c8b8a8', 0.6);
+scene.add(ambient);
+
+// 半球光 (天空 + 地面)
+const hemi = new THREE.HemisphereLight('#fff5e8', '#3a2a1a', 0.4);
+scene.add(hemi);
+
+// 主方向光 (模拟窗口光，从右上方)
+const keyLight = new THREE.DirectionalLight('#ffffff', 4);
+keyLight.position.set(8, 12, 4);
+keyLight.castShadow = true;
+keyLight.shadow.mapSize.width = 2048;
+keyLight.shadow.mapSize.height = 2048;
+keyLight.shadow.camera.near = 0.5;
+keyLight.shadow.camera.far = 50;
+keyLight.shadow.camera.left = -10;
+keyLight.shadow.camera.right = 10;
+keyLight.shadow.camera.top = 10;
+keyLight.shadow.camera.bottom = -10;
+keyLight.shadow.bias = -0.0001;
+keyLight.shadow.normalBias = 0.02;
+scene.add(keyLight);
+
+// 补光 (从左侧，减少暗部过黑)
+const fillLight = new THREE.DirectionalLight('#c8b8a8', 1.5);
+fillLight.position.set(-4, 3, -2);
+scene.add(fillLight);
+
+// 底部补光 (减少织物下方阴影)
+const rimLight = new THREE.DirectionalLight('#a09080', 2);
+rimLight.position.set(0, -1, 4);
+scene.add(rimLight);
+
+// ========== 地面 ==========
+const floorGeo = new THREE.PlaneGeometry(40, 40);
+const floorMat = new THREE.MeshStandardMaterial({
+  color: '#2a2a3e',
+  roughness: 0.9,
+  metalness: 0.1
+});
+const floor = new THREE.Mesh(floorGeo, floorMat);
+floor.rotation.x = -Math.PI / 2;
+floor.position.y = -3;
+floor.receiveShadow = true;
+scene.add(floor);
+
+// ========== 材质 ==========
+let yarnColor = '#e8d5c4';
+const yarnMaterial = new THREE.MeshStandardMaterial({
+  color: yarnColor,
+  roughness: 0.65,
+  metalness: 0.05,
+});
+
+// ========== 针法几何体生成 ==========
+const STITCH_W = 0.5;  // 针宽 (列间距)
+const STITCH_H = 0.38; // 行高 (行间距)
+const TUBE_RADIUS = 0.035;
+const TUBE_SEGMENTS = 8;
+const CURVE_SEGMENTS = 16;
+
+function createStitchCurve(type, ox, oz) {
+  // type: 'knit' | 'purl'
+  // ox, oz: 单元格中心偏移
+  const hw = STITCH_W * 0.35;
+  const top = STITCH_H * 0.32;
+  const bot = -STITCH_H * 0.28;
+
+  if (type === 'knit') {
+    // V 形：从左上 → 底部中心 → 右上
+    return new THREE.CatmullRomCurve3([
+      new THREE.Vector3(ox - hw, top, oz + 0.02),
+      new THREE.Vector3(ox - hw * 0.5, top * 0.3, oz + 0.04),
+      new THREE.Vector3(ox, bot, oz + 0.06),
+      new THREE.Vector3(ox + hw * 0.5, top * 0.3, oz + 0.04),
+      new THREE.Vector3(ox + hw, top, oz + 0.02),
+    ]);
+  } else {
+    // 上针（波浪横纹）：凸起更明显
+    return new THREE.CatmullRomCurve3([
+      new THREE.Vector3(ox - hw, top, oz + 0.02),
+      new THREE.Vector3(ox - hw * 0.5, top * 0.1, oz + 0.08),
+      new THREE.Vector3(ox, bot * 0.5, oz + 0.12),
+      new THREE.Vector3(ox + hw * 0.5, top * 0.1, oz + 0.08),
+      new THREE.Vector3(ox + hw, top, oz + 0.02),
+    ]);
+  }
+}
+
+function createStitchMesh(type, ox, oz) {
+  const curve = createStitchCurve(type, ox, oz);
+  const geo = new THREE.TubeGeometry(curve, CURVE_SEGMENTS, TUBE_RADIUS, TUBE_SEGMENTS, false);
+  const mesh = new THREE.Mesh(geo, yarnMaterial);
+  mesh.castShadow = true;
+  mesh.receiveShadow = true;
+  return mesh;
+}
+
+// ========== 织物生成 ==========
+const ROWS = 15;
+const COLS = 15;
+let fabricGroup = new THREE.Group();
+scene.add(fabricGroup);
+
+// 针法图案定义
+const PATTERNS = {
+  stockinette: () => {
+    // 平针：一行下针一行上针交替 → 正面全是 V，反面全是横纹
+    const pattern = [];
+    for (let r = 0; r < ROWS; r++) {
+      pattern[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        pattern[r][c] = (r % 2 === 0) ? 'knit' : 'purl';
+      }
+    }
+    return pattern;
+  },
+  garter: () => {
+    // 起伏针：全部下针 → 正反面都是横纹效果
+    const pattern = [];
+    for (let r = 0; r < ROWS; r++) {
+      pattern[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        pattern[r][c] = 'knit';
+      }
+    }
+    return pattern;
+  },
+  rib1x1: () => {
+    // 1×1 罗纹：一列下针一列上针交替
+    const pattern = [];
+    for (let r = 0; r < ROWS; r++) {
+      pattern[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        pattern[r][c] = (c % 2 === 0) ? 'knit' : 'purl';
+      }
+    }
+    return pattern;
+  },
+  seed: () => {
+    // 桂花针：下针上针交替，下一行错位
+    const pattern = [];
+    for (let r = 0; r < ROWS; r++) {
+      pattern[r] = [];
+      for (let c = 0; c < COLS; c++) {
+        pattern[r][c] = ((r + c) % 2 === 0) ? 'knit' : 'purl';
+      }
+    }
+    return pattern;
+  }
+};
+
+let currentPattern = 'stockinette';
+
+function buildFabric(patternName) {
+  // 清除旧几何体
+  while (fabricGroup.children.length > 0) {
+    const child = fabricGroup.children[0];
+    if (child.geometry) child.geometry.dispose();
+    fabricGroup.remove(child);
+  }
+
+  const pattern = PATTERNS[patternName]();
+
+  // 计算织物中心偏移
+  const totalW = (COLS - 1) * STITCH_W;
+  const totalH = (ROWS - 1) * STITCH_H;
+  const startX = -totalW / 2;
+  const startZ = -totalH / 2;
+
+  for (let r = 0; r < ROWS; r++) {
+    for (let c = 0; c < COLS; c++) {
+      const ox = startX + c * STITCH_W;
+      const oz = startZ + r * STITCH_H;
+      const type = pattern[r][c];
+      const mesh = createStitchMesh(type, ox, oz);
+      fabricGroup.add(mesh);
+    }
+  }
+}
+
+// 初始构建
+buildFabric(currentPattern);
+
+// ========== 事件处理 ==========
+// 图案切换
+document.querySelectorAll('.pattern-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.pattern-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    currentPattern = btn.dataset.pattern;
+    buildFabric(currentPattern);
+  });
+});
+
+// 颜色切换
+const colorPicker = document.getElementById('colorPicker');
+colorPicker.addEventListener('input', (e) => {
+  yarnColor = e.target.value;
+  yarnMaterial.color.set(yarnColor);
+});
+
+// 窗口大小变化
+window.addEventListener('resize', () => {
+  camera.aspect = container.clientWidth / container.clientHeight;
+  camera.updateProjectionMatrix();
+  renderer.setSize(container.clientWidth, container.clientHeight);
+});
+
+// 触摸设备双指手势提示
+const isTouchDevice = 'ontouchstart' in window;
+if (isTouchDevice) {
+  document.getElementById('hint').textContent = '👆 单指旋转  |  双指缩放  |  双指平移';
+}
+
+// ========== 渲染循环 ==========
+function animate() {
+  requestAnimationFrame(animate);
+  controls.update();
+  renderer.render(scene, camera);
+}
+
+// 隐藏加载动画
+document.getElementById('loading').classList.add('hidden');
+setTimeout(() => {
+  const el = document.getElementById('loading');
+  if (el) el.remove();
+}, 600);
+
+animate();
+
+console.log('🧶 织记·3D 针法预览已就绪');
+console.log('  针数:', ROWS, '×', COLS, '=', ROWS * COLS);
+console.log('  图案:', currentPattern);
+</script>
+</body>
+</html>
